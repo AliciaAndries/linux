@@ -286,8 +286,10 @@
 #include <scsi/scsi_common.h>
 #include <scsi/scsi_request.h>
 
+#include <rust/cdrom_c2rust.h>
+
 /* used to tell the module to turn on full debugging messages */
-static bool debug;
+static bool debug;				// AL: globals are inited to 0 
 /* default compatibility mode */
 static bool autoclose=1;
 static bool autoeject;
@@ -296,7 +298,7 @@ static bool lockdoor = 1;
 static bool check_media_type;
 /* automatically restart mrw format */
 static bool mrw_format_restart = 1;
-module_param(debug, bool, 0);
+module_param(debug, bool, 0);				// these can apparently be changed at any time
 module_param(autoclose, bool, 0);
 module_param(autoeject, bool, 0);
 module_param(lockdoor, bool, 0);
@@ -3446,16 +3448,19 @@ EXPORT_SYMBOL(cdrom_get_media_event);
 
 #ifdef CONFIG_SYSCTL
 
-#define CDROM_STR_SIZE 1000
+//#define CDROM_STR_SIZE 1000		AL: moved to c2rust.h file
 
-static struct cdrom_sysctl_settings {
-	char	info[CDROM_STR_SIZE];	/* general info */
-	int	autoclose;		/* close tray upon mount, etc */
-	int	autoeject;		/* eject on umount */
-	int	debug;			/* turn on debugging messages */
-	int	lock;			/* lock the door on device open */
-	int	check;			/* check media type */
-} cdrom_sysctl_settings;
+static struct cdrom_sysctl_settings cdrom_sysctl_settings;
+
+// static struct cdrom_sysctl_settings {						//AL: need this
+// 	char	info[CDROM_STR_SIZE];	/* general info */
+// 	int	autoclose;		/* close tray upon mount, etc */
+// 	int	autoeject;		/* eject on umount */
+// 	int	debug;			/* turn on debugging messages */
+// 	int	lock;			/* lock the door on device open */
+// 	int	check;			/* check media type */
+// } cdrom_sysctl_settings;
+
 
 enum cdrom_print_option {
 	CTL_NAME,
@@ -3477,7 +3482,7 @@ static int cdrom_print_info(const char *header, int val, char *info,
 
 	*pos += ret;
 
-	list_for_each_entry(cdi, &cdrom_list, list) {
+	list_for_each_entry(cdi, &cdrom_list, list) {			// AL: pretty sure this goes through all the cdrom drivers but im not completely sure
 		switch (option) {
 		case CTL_NAME:
 			ret = scnprintf(info + *pos, max_size - *pos,
@@ -3507,7 +3512,7 @@ static int cdrom_print_info(const char *header, int val, char *info,
 	return 0;
 }
 
-static int cdrom_sysctl_info(struct ctl_table *ctl, int write,
+int cdrom_sysctl_info(struct ctl_table *ctl, int write,				//AL: need this
                            void *buffer, size_t *lenp, loff_t *ppos)
 {
 	int pos;
@@ -3620,10 +3625,14 @@ static void cdrom_update_settings(void)
 	mutex_unlock(&cdrom_mutex);
 }
 
-static int cdrom_sysctl_handler(struct ctl_table *ctl, int write,
+int cdrom_sysctl_handler(struct ctl_table *ctl, int write,		//AL: need this
 				void *buffer, size_t *lenp, loff_t *ppos)
 {
 	int ret;
+
+	/* drom_sysctl_register_rust(&cdrom_sysctl_settings,
+        autoclose, autoeject, debug, 
+        lockdoor, check_media_type); */
 	
 	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
 
@@ -3702,7 +3711,7 @@ static void cdrom_sysctl_register(void)
 
 	cdrom_sysctl_header = register_sysctl("dev/cdrom", cdrom_table);
 
-	/* set the defaults */
+	/* set the defaults */													//AL: why are sysctl settings first passed to register sysctl and then set?
 	cdrom_sysctl_settings.autoclose = autoclose;
 	cdrom_sysctl_settings.autoeject = autoeject;
 	cdrom_sysctl_settings.debug = debug;
@@ -3728,7 +3737,7 @@ static void cdrom_sysctl_unregister(void)
 
 #endif /* CONFIG_SYSCTL */
 
-static int __init cdrom_init(void)
+/* static int __init cdrom_init(void)
 {
 	cdrom_sysctl_register();
 
@@ -3744,3 +3753,4 @@ static void __exit cdrom_exit(void)
 module_init(cdrom_init);
 module_exit(cdrom_exit);
 MODULE_LICENSE("GPL");
+ */

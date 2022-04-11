@@ -53,6 +53,7 @@ pub mod driver;
 pub mod error;
 pub mod file;
 pub mod gpio;
+pub mod helloworld;
 pub mod hwrng;
 pub mod irq;
 pub mod miscdev;

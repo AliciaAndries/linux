@@ -10,6 +10,17 @@ menuconfig SAMPLES_RUST
 
 if SAMPLES_RUST
 
+config SAMPLE_HELLO_WORLD
+	tristate "HelloWorld"
+	help
+	  This option builds the Hello world tryout.
+
+	  To compile this as a module, choose M here:
+	  the module will be called helloworld.
+
+	  If unsure, say N.
+	  
+
 config SAMPLE_RUST_MINIMAL
 	tristate "Minimal"
 	help
