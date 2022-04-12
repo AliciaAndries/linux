@@ -1,6 +1,7 @@
 use kernel::prelude::*;
 use core::sync::atomic::{AtomicI32, Ordering};
 use core::mem::size_of;
+use core::str::FromStr;
 
 const CDROM_STR_SIZE: kernel::bindings::usize = 1000;     // Should this be usize or umode_t
 
@@ -36,7 +37,7 @@ struct RustCDRom {                                  // TODO: this should maybe b
     autoeject:  bool,
     debug:      bool,
     lock:       bool,
-    check:      bool   
+    check:      bool,   
 }
 
 static cdrom_sysctl_header: *const ctl_table_header;        // AL: this shouldnt work and it doesn't isnt that fun
@@ -48,46 +49,46 @@ impl kernel::Module for RustCDRom {
         let cdrom_table =
         [
         kernel::bindings::ctl_table {
-            procname:       "info",
+            procname:       from_str::<i8>("info"),
             data:           RustCDRom::info,        // refers to a struct that should be the same struct as the one used in the c-code
             maxlen:         CDROM_STR_SIZE,
             mode:           0444,
-            proc_handler:   kernel::bindings::cdrom_sysctl_info   // function pointer
+            proc_handler:   Some(kernel::bindings::cdrom_sysctl_info)   // function pointer
         },
         kernel::bindings::ctl_table {
-            procname:	    "autoclose",
+            procname:	    from_str::<i8>("autoclose"),
             data:		    RustCDRom::autoclose,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
-            proc_handler:	kernel::bindings::cdrom_sysctl_handler,
+            proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:       "autoeject",
+            procname:       from_str::<i8>("autoeject"),
             data:		    RustCDRom::autoeject,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
-            proc_handler:	kernel::bindings::cdrom_sysctl_handler,
+            proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    "debug",
+            procname:	    from_str::<i8>("debug"),
             data:		    RustCDRom::debug,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
-            proc_handler:   kernel::bindings::cdrom_sysctl_handler,
+            proc_handler:   Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    "lock",
+            procname:	    from_str::<i8>("lock"),
             data:		    RustCDRom::lock,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
-            proc_handler:	kernel::bindings::cdrom_sysctl_handler,
+            proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    "check_media",
+            procname:	    from_str::<i8>("check_media"),
             data:		    RustCDRom::check,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
-            proc_handler:	kernel::bindings::cdrom_sysctl_handler
+            proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler)
         },
         ];
     
@@ -95,10 +96,10 @@ impl kernel::Module for RustCDRom {
     
         
         if !atomic_add_unless(&INITIALIZED, 1, 1){
-            return RustCDRom;                            // AL: should this be self or none?
+            return Ok(Self);                            // AL: should this be self or none? neither is an option, need to return Ok
         }
     
-        cdrom_sysctl_header = kernel::bindings::register_sysctl("dev/cdrom", cdrom_table);     // am i sending a copy of the array?
+        cdrom_sysctl_header = kernel::bindings::register_sysctl(from_str::<i8>("dev/cdrom"), &mut cdrom_table);     // am i sending a copy of the array yes need a pointer?
 
         Ok(RustCDRom {                  // AL: I think this struct shouldnt be in Ok as info is not set, rather, it should be the last line but how do you return then?
             autoclose: AUTOCLOSE,
