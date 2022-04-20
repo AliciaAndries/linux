@@ -2,12 +2,14 @@ use kernel::prelude::*;
 use core::sync::atomic::{AtomicI32, Ordering};
 use core::mem::size_of;
 use core::str::FromStr;
+//use lazy_static;
+use kernel::str::CString;
 
-const CDROM_STR_SIZE: kernel::bindings::usize = 1000;     // Should this be usize or umode_t
+const CDROM_STR_SIZE: kernel::bindings::umode_t = 1000;     // Should this be usize or umode_t
 
 static DEBUG: bool = false;
 
-static AUTOCLOSE: bool = true;
+static AUTOCLOSE: bool = true;      // TODO: make sure this static is the correct static
 static AUTOEJECT: bool = false;
 static LOCKDOOR: bool = true;
 
@@ -31,8 +33,8 @@ fn atomic_add_unless(atom: &AtomicI32, add: i32, comp: i32)->bool{
     return true;
 }
 
-struct RustCDRom {                                  // TODO: this should maybe be another struct: cdrom_sysctl_header
-    info:       [kernel::c_types::c_char; CDROM_STR_SIZE],
+struct CDromSysctlSettings {
+    info:       [kernel::c_types::c_char; CDROM_STR_SIZE as usize],
     autoclose:  bool,
     autoeject:  bool,
     debug:      bool,
@@ -40,7 +42,33 @@ struct RustCDRom {                                  // TODO: this should maybe b
     check:      bool,   
 }
 
-static cdrom_sysctl_header: *const ctl_table_header;        // AL: this shouldnt work and it doesn't isnt that fun
+/* lazy_static!{
+    static ref CDROM_SYSCTL_SETTINGS = CDromSysctlSettings{
+        info: [0; CDROM_STR_SIZE as usize]
+        autoclose: AUTOCLOSE,
+        autoeject: AUTOEJECT,
+        debug: DEBUG,
+        lock: LOCKDOOR,
+        check: CHECK_MEDIA_TYPE,
+    }
+} */
+
+static mut CDROM_SYSCTL_SETTINGS: CDromSysctlSettings = CDromSysctlSettings{
+    info: [0; CDROM_STR_SIZE as usize],
+    autoclose: AUTOCLOSE,
+    autoeject: AUTOEJECT,
+    debug: DEBUG,
+    lock: LOCKDOOR,
+    check: CHECK_MEDIA_TYPE
+};
+
+static cdrom_sysctl_header: *const kernel::bindings::ctl_table_header;  // TODO: make this a lazy static
+
+struct RustCDRom {                                  // TODO: this should maybe be another struct: cdrom_sysctl_header
+    text: String,
+}
+
+//static cdrom_sysctl_header: *const ctl_table_header;        // AL: this shouldnt work and it doesn't isnt that fun
 
 impl kernel::Module for RustCDRom {
     fn init(_name: &'static CStr, _module: &'static ThisModule) -> Result<Self> {
@@ -49,43 +77,44 @@ impl kernel::Module for RustCDRom {
         let cdrom_table =
         [
         kernel::bindings::ctl_table {
-            procname:       from_str::<i8>("info"),
-            data:           RustCDRom::info,        // refers to a struct that should be the same struct as the one used in the c-code
+            procname:       unsafe{CString::new("info").unwrap().as_ptr as *const u8},
+            data:           CDROM_SYSCTL_SETTINGS.info,        // refers to a struct that should be the same struct as the one used in the c-code
             maxlen:         CDROM_STR_SIZE,
             mode:           0444,
             proc_handler:   Some(kernel::bindings::cdrom_sysctl_info)   // function pointer
+
         },
         kernel::bindings::ctl_table {
-            procname:	    from_str::<i8>("autoclose"),
-            data:		    RustCDRom::autoclose,
+            procname:	    i8::from_str("autoclose"),
+            data:		    CDROM_SYSCTL_SETTINGS.autoclose,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
             proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:       from_str::<i8>("autoeject"),
-            data:		    RustCDRom::autoeject,
+            procname:       i8::from_str("autoeject"),
+            data:		    CDROM_SYSCTL_SETTINGS.autoeject,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
             proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    from_str::<i8>("debug"),
-            data:		    RustCDRom::debug,
+            procname:	    i8::from_str("debug"),
+            data:		    CDROM_SYSCTL_SETTINGS.debug,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
             proc_handler:   Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    from_str::<i8>("lock"),
-            data:		    RustCDRom::lock,
+            procname:	    i8::from_str("lock"),
+            data:		    CDROM_SYSCTL_SETTINGS.lock,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
             proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler),
         },
         kernel::bindings::ctl_table {
-            procname:	    from_str::<i8>("check_media"),
-            data:		    RustCDRom::check,
+            procname:	    CString::new("check_media").unwrap.as_ptr as *const u8,
+            data:		    CDROM_SYSCTL_SETTINGS.check,
             maxlen:		    size_of::<i32>(),
             mode:		    0644,
             proc_handler:	Some(kernel::bindings::cdrom_sysctl_handler)
@@ -96,24 +125,32 @@ impl kernel::Module for RustCDRom {
     
         
         if !atomic_add_unless(&INITIALIZED, 1, 1){
-            return Ok(Self);                            // AL: should this be self or none? neither is an option, need to return Ok
+            return Ok(RustCDRom{text: "already existed"}); //this shouldnt really be updated by an unwanted initalization
         }
-    
-        cdrom_sysctl_header = kernel::bindings::register_sysctl(from_str::<i8>("dev/cdrom"), &mut cdrom_table);     // am i sending a copy of the array yes need a pointer?
+        
+        //what happens if I mark this line unsafe -> its out of scope later so completely useless (this was for when it was still in RustCDRom)
+        //let sysctl_header = kernel::bindings::register_sysctl(i8::from_str("dev/cdrom"), &mut cdrom_table);
+        //cdrom_table should be a pointer to the first element in the array, so that also aint right
+        unsafe{
+            cdrom_sysctl_header = kernel::bindings::register_sysctl(i8::from_str("dev/cdrom"), &mut cdrom_table);
+        }
+        
 
-        Ok(RustCDRom {                  // AL: I think this struct shouldnt be in Ok as info is not set, rather, it should be the last line but how do you return then?
-            autoclose: AUTOCLOSE,
-            autoeject: AUTOEJECT,
-            debug: DEBUG,
-            lock: LOCKDOOR,
-            check: CHECK_MEDIA_TYPE,
-        }) 
+        CDROM_SYSCTL_SETTINGS.autoclose = AUTOCLOSE;
+        CDROM_SYSCTL_SETTINGS.autoeject = AUTOEJECT;
+        CDROM_SYSCTL_SETTINGS.debug = DEBUG;
+        CDROM_SYSCTL_SETTINGS.lock = LOCKDOOR;
+        CDROM_SYSCTL_SETTINGS.check = CHECK_MEDIA_TYPE;
+
+        Ok(RustCDRom{
+            text: "initialized"
+        })
     }
 }
 
 impl Drop for RustCDRom {
     fn drop(&mut self) {
-        kernel::bindings::unregister_sysctl_table(cdrom_sysctl_header);
+        kernel::bindings::unregister_sysctl_table(self.cdrom_sysctl_header);
         pr_info!("exiting cdrom");
     }
 }

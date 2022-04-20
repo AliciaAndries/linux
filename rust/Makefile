@@ -3,7 +3,7 @@
 always-$(CONFIG_RUST) += target.json
 no-clean-files += target.json
 
-obj-$(CONFIG_RUST) += core.o compiler_builtins.o
+obj-$(CONFIG_RUST) += core.o compiler_builtins.o #lazy_static.o
 always-$(CONFIG_RUST) += exports_core_generated.h
 
 # Missing prototypes are expected in the helpers since these are exported
@@ -15,7 +15,7 @@ always-$(CONFIG_RUST) += libmacros.so
 no-clean-files += libmacros.so
 
 always-$(CONFIG_RUST) += bindings_generated.rs bindings_helpers_generated.rs
-obj-$(CONFIG_RUST) += alloc.o kernel.o
+obj-$(CONFIG_RUST) += alloc.o kernel.o 
 always-$(CONFIG_RUST) += exports_alloc_generated.h exports_kernel_generated.h
 
 ifdef CONFIG_RUST_BUILD_ASSERT_DENY
@@ -47,6 +47,9 @@ endif
 
 core-cfgs = \
     --cfg no_fp_fmt_parse
+
+lazy_static-cfgs = \
+	--cfg spin_no_std
 
 alloc-cfgs = \
     --cfg no_global_oom_handling \
@@ -352,6 +355,12 @@ $(obj)/core.o: private skip_flags = -Dunreachable_pub --edition=2021
 $(obj)/core.o: private rustc_target_flags = $(core-cfgs) --edition=2018
 $(obj)/core.o: $(RUST_LIB_SRC)/core/src/lib.rs $(obj)/target.json FORCE
 	$(call if_changed_dep,rustc_library)
+
+# $(obj)/lazy_static.o: private skip_clippy = 1
+# $(obj)/lazy_static.o: private skip_flags = -Dunreachable_pub
+# $(obj)/lazy_static.o: private rustc_target_flags = $(lazy_static-cfgs)
+# $(obj)/lazy_static.o: $(RUST_LIB_SRC)/lazy_static/src/lib.rs $(obj)/target.json FORCE
+# 	$(call if_changed_dep,rustc_library)
 
 $(obj)/compiler_builtins.o: private rustc_objcopy = -w -W '__*'
 $(obj)/compiler_builtins.o: $(src)/compiler_builtins.rs $(obj)/core.o FORCE
