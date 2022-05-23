@@ -171,6 +171,52 @@ impl<T: SysctlStorage> Sysctl<T> {
         })
     }
 
+    pub fn custom_register(
+        path: &'static CStr,
+        name: &'static CStr,
+        storage: T,
+        mode: crate::bindings::umode_t,
+        proc_handler: unsafe extern "C" fn(*mut bindings::ctl_table,
+            c_types::c_int,
+            *mut c_types::c_void,
+            *mut usize,
+            *mut bindings::loff_t,
+        ) -> c_types::c_int,
+        maxlen: usize,
+    ) -> Result<Sysctl<T>> {
+        if name.contains(&b'/') {
+            return Err(EINVAL);
+        }
+
+        let storage = Box::try_new(storage)?;
+        let mut table = Vec::try_with_capacity(2)?;
+        table.try_push(bindings::ctl_table {
+            procname: name.as_char_ptr(),
+            mode: mode,
+            data: &*storage as *const T as *mut c_types::c_void,
+            proc_handler: Some(proc_handler),
+            maxlen: maxlen as i32,
+
+            child: ptr::null_mut(),
+            poll: ptr::null_mut(),
+            extra1: ptr::null_mut(),
+            extra2: ptr::null_mut(),
+        })?;
+        table.try_push(unsafe { mem::zeroed() })?;
+        let mut table = table.try_into_boxed_slice()?;
+
+        let result = unsafe { bindings::register_sysctl(path.as_char_ptr(), table.as_mut_ptr()) };
+        if result.is_null() {
+            return Err(ENOMEM);
+        }
+
+        Ok(Sysctl {
+            inner: storage,
+            _table: table,
+            header: result,
+        })
+    }
+
     /// Gets the storage.
     pub fn get(&self) -> &T {
         &self.inner
