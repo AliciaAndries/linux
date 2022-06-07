@@ -84,6 +84,15 @@ impl SysctlStorage for atomic::AtomicBool {
     }
 }
 
+impl SysctlStorage for alloc::string::String {
+    fn store_value(&self, data: &[u8]) -> (usize, Result) {
+        (0, Ok(()))
+    }
+    fn read_value(&self, data: &mut UserSlicePtrWriter) -> (usize, Result) {
+        (0, Ok(()))
+    }
+}
+
 /// Holds a single `sysctl` entry (and its table).
 pub struct Sysctl<T: SysctlStorage> {
     inner: Box<T>,

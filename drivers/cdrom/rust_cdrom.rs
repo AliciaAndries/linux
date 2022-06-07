@@ -2,12 +2,15 @@ use kernel::prelude::*;
 use core::sync::atomic::{AtomicI32, Ordering};
 use core::mem::size_of;
 use core::str::FromStr;
+use core::str::from_utf8;
 //use lazy_static;
 use kernel::str::CString;
 use kernel::sysctl::Sysctl;
 use alloc::fmt::Arguments;
 use kernel::c_types;
 use kernel::bindings;
+//use alloc::ToString::to_string;
+use alloc::string::ToString;
 use core::sync::atomic;
 use core::format_args;
 
@@ -72,7 +75,7 @@ static mut CDROM_SYSCTL_SETTINGS: CDromSysctlSettings = CDromSysctlSettings{
 //static cdrom_sysctl_header: *const kernel::bindings::ctl_table_header;  // TODO: make this a lazy static
 
 struct RustCDRom {                                  // TODO: this should maybe be another struct: cdrom_sysctl_header
-    cdrom_sysctl_info: Result<Sysctl<atomic::AtomicBool>>,
+    cdrom_sysctl_info: Result<String>,
     cdrom_sysctl_autoclose: Result<Sysctl<atomic::AtomicBool>>,
     cdrom_sysctl_autoeject: Result<Sysctl<atomic::AtomicBool>>,
     cdrom_sysctl_debug: Result<Sysctl<atomic::AtomicBool>>,
@@ -157,6 +160,12 @@ impl kernel::Module for RustCDRom {
 
         let path = CString::try_from_fmt(format_args!("dev/cdrom")).unwrap();
 
+        let info = match from_utf8(&CDROM_SYSCTL_SETTINGS.info) {
+            Ok(v) => v,
+            Err(e) => "",
+        };
+        let info = ToString::to_string(&info);
+
         Ok(RustCDRom{
             cdrom_sysctl_autoclose: Sysctl::<atomic::AtomicBool>::custom_register(&path, &CString::try_from_fmt(format_args!("autoclose")).unwrap(), 
                 CDROM_SYSCTL_SETTINGS.autoclose, 0644 as bindings::umode_t, kernel::bindings::cdrom_sysctl_handler, size_of::<i32>()),
@@ -168,8 +177,8 @@ impl kernel::Module for RustCDRom {
                 CDROM_SYSCTL_SETTINGS.check, 0644 as bindings::umode_t, kernel::bindings::cdrom_sysctl_handler, size_of::<i32>()),
             cdrom_sysctl_lock: Sysctl::<atomic::AtomicBool>::custom_register(&path, &CString::try_from_fmt(format_args!("lock")).unwrap(), 
                 CDROM_SYSCTL_SETTINGS.lock, 0644 as bindings::umode_t, kernel::bindings::cdrom_sysctl_handler, size_of::<i32>()),
-            cdrom_sysctl_info: Sysctl::<&[i8; 1000]>::custom_register(&path, &CString::try_from_fmt(format_args!("info")).unwrap(), 
-                CDROM_SYSCTL_SETTINGS.info, 0444 as bindings::umode_t, kernel::bindings::cdrom_sysctl_info, CDROM_STR_SIZE as usize),
+            cdrom_sysctl_info: Sysctl::<String>::custom_register(&path, &CString::try_from_fmt(format_args!("info")).unwrap(), 
+                info, 0444 as bindings::umode_t, kernel::bindings::cdrom_sysctl_info, CDROM_STR_SIZE as usize),
         })
     }
 }
