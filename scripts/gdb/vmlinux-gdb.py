@@ -22,7 +22,7 @@ except:
     gdb.write("NOTE: gdb 7.2 or later required for Linux helper scripts to "
               "work.\n")
 else:
-    import linux.utils
+    import linux.utilst
     import linux.symbols
     import linux.modules
     import linux.dmesg

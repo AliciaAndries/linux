@@ -1,4 +1,4 @@
-use kernel::prelude::*;
+/* use kernel::prelude::*;
 
 module! {
     type: RustHelloWorld,
@@ -27,4 +27,4 @@ impl Drop for RustHelloWorld {
         pr_info!("My message is {}\n", self.message);
         pr_info!("Rust Hello world is exiting\n");
     }
-}
+} */

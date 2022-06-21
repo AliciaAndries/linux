@@ -1,1 +1,1 @@
-obj-y		+= helloworld.o
+#obj-y		+= helloworld.o
