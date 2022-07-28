@@ -20,6 +20,15 @@ config SAMPLE_HELLO_WORLD
 
 	  If unsure, say N.
 	  
+config SAMPLE_RUST_FLOPPY
+	tristate "Floppy"
+	help
+	  This option builds the Rust floppy module sample.
+
+	  To compile this as a module, choose M here:
+	  the module will be called floppy.
+
+	  If unsure, say N.
 
 config SAMPLE_RUST_MINIMAL
 	tristate "Minimal"
